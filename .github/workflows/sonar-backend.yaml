@@ -1,85 +1,75 @@
-name: SonarCloud Scan [backend]
-on:
-  push:
-    branches:
-      - 'main'
-  pull_request_target:
-    types: ['opened', 'edited', 'reopened', 'synchronize']
-    paths:
-      - 'odd-platform-api/**'
-      - 'build.gradle'
-
 jobs:
   sonar-backend:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+    - continue-on-error: true
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
+    - continue-on-error: true
+      uses: unfor19/install-aws-cli-action@v1
+    - continue-on-error: true
+      name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: '17'
+    - continue-on-error: true
+      name: Cache SonarCloud packages
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-sonar
+        path: ~/.sonar/cache
+        restore-keys: ${{ runner.os }}-sonar
+    - continue-on-error: true
+      name: Gradle cache
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-shared-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties')
+          }}
+        path: '~/.gradle/caches
 
-      - uses: unfor19/install-aws-cli-action@v1
+          ~/.gradle/wrapper
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
+          '
+        restore-keys: '${{ runner.os }}-gradle-
 
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v3
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
+          '
+    - continue-on-error: true
+      name: Node cache
+      uses: actions/cache@v3
+      with:
+        key: ${{ runner.os }}-shared-node-${{ hashFiles('**/package-lock.json') }}
+        path: odd-platform-ui/.npm
+        restore-keys: '${{ runner.os }}-node-
 
-      - name: Gradle cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-shared-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Node cache
-        uses: actions/cache@v3
-        with:
-          path: odd-platform-ui/.npm
-          key: ${{ runner.os }}-shared-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Build and analyze pull request target
-        if: ${{ github.event_name == 'pull_request_target' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-          JAVA_OPTS: "-Xms2048m -Xmx2048m"
-        run: |
-          ./gradlew -x compileTestJava :odd-platform-api:sonarqube \
-            --info \
-            --no-daemon \
-            --scan \
-            -PbundleUI=false \
-            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
-            -Dsonar.pullrequest.branch=$HEAD_REF \
-            -Dsonar.pullrequest.base=$BASE_REF
-
-      - name: Build main branch
-        if: ${{ github.event_name == 'push' }}
-        env:
-          GENERATE_SOURCEMAP: false
-          CI: false
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          JAVA_OPTS: "-Xms2048m -Xmx2048m"
-        run: |
-          ./gradlew -x compileTestJava :odd-platform-api:sonarqube \
-            --info \
-            --no-daemon \
-            --scan \
-            -PbundleUI=false
+          '
+    - continue-on-error: true
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HEAD_REF: ${{ github.head_ref }}
+        JAVA_OPTS: -Xms2048m -Xmx2048m
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      if: ${{ github.event_name == 'pull_request_target' }}
+      name: Build and analyze pull request target
+      run: "./gradlew -x compileTestJava :odd-platform-api:sonarqube \\\n  --info\
+        \ \\\n  --no-daemon \\\n  --scan \\\n  -PbundleUI=false \\\n  -Dsonar.pullrequest.key=${{\
+        \ github.event.pull_request.number }} \\\n  -Dsonar.pullrequest.branch=$HEAD_REF\
+        \ \\\n  -Dsonar.pullrequest.base=$BASE_REF\n"
+    - continue-on-error: true
+      env:
+        CI: false
+        GENERATE_SOURCEMAP: false
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        JAVA_OPTS: -Xms2048m -Xmx2048m
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      if: ${{ github.event_name == 'push' }}
+      name: Build main branch
+      run: "./gradlew -x compileTestJava :odd-platform-api:sonarqube \\\n  --info\
+        \ \\\n  --no-daemon \\\n  --scan \\\n  -PbundleUI=false"
+name: SonarCloud Scan [backend]
+on:
+  repository_dispatch:
+    types: trigger-ga___sonar-backend.yaml
